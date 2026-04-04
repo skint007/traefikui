@@ -65,7 +65,7 @@ The master is the main UI that users log into. Deploy it on the same Docker netw
 ```yaml
 services:
   traefikui:
-    image: ghcr.io/skint007Labs/traefikui:latest
+    image: ghcr.io/skint007/traefikui:latest
     container_name: traefikui
     restart: unless-stopped
     volumes:
@@ -132,7 +132,7 @@ Deploy an agent on each remote server that has a Traefik instance you want to ma
 ```yaml
 services:
   traefikui-agent:
-    image: ghcr.io/skint007Labs/traefikui:latest
+    image: ghcr.io/skint007/traefikui:latest
     container_name: traefikui-agent
     restart: unless-stopped
     ports:
