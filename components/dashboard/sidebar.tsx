@@ -85,6 +85,9 @@ export function Sidebar() {
           })}
         </nav>
         <div className="border-t p-4 space-y-1">
+          <div className="px-3 pb-1 text-xs text-sidebar-foreground/50">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </div>
           <Link
             href="/settings"
             className={cn(
