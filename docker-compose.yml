@@ -1,0 +1,23 @@
+services:
+  traefikui:
+    image: ghcr.io/skint007Labs/traefikui:latest
+    container_name: traefikui
+    restart: unless-stopped
+    volumes:
+      - /opt/traefik-config/configurations:/traefik-config:rw
+      - /opt/traefikui/data:/app/data
+    environment:
+      - TRAEFIK_API_URL=http://traefik:8080
+      - CONFIG_DIR=/traefik-config
+      - DATABASE_URL=file:/app/data/auth.db
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - BETTER_AUTH_URL=https://traefikui.example.com
+      - NEXT_PUBLIC_APP_URL=https://traefikui.example.com
+      - TRAEFIKUI_MODE=master
+      - AGENT_API_KEY=${AGENT_API_KEY}
+    networks:
+      - reverseproxy-network
+
+networks:
+  reverseproxy-network:
+    external: true
