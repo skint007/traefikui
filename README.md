@@ -18,13 +18,10 @@ TraefikUI runs in two modes from the same Docker image:
 - **Master** — The main UI instance. Has authentication, database, templates, and proxies requests to remote agents.
 - **Agent** — A lightweight instance deployed alongside each Traefik server. Exposes an API for the master to manage config files and read Traefik data. No UI, no database, no auth (secured by API key).
 
-```
-┌─────────────────┐         ┌──────────────────┐
-│   Master UI     │───────▶│ Agent (Server A) │──▶ Traefik A
-│  (browser)      │         └──────────────────┘
-│                 │         ┌──────────────────┐
-│                 │───────▶│ Agent (Server B) │──▶ Traefik B
-└─────────────────┘         └──────────────────┘
+```mermaid
+graph LR
+    Master[Master UI<br/>browser] --> AgentA[Agent<br/>Server A] --> TraefikA[Traefik A]
+    Master --> AgentB[Agent<br/>Server B] --> TraefikB[Traefik B]
 ```
 
 The master can also manage a local Traefik instance directly (no agent needed for the server it runs on).
