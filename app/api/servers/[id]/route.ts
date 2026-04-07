@@ -35,7 +35,8 @@ export async function GET(
 
     const { apiKey, ...safe } = result;
     return NextResponse.json({ ...safe, apiKeyMasked: maskApiKey(apiKey) });
-  } catch {
+  } catch (error) {
+    console.error("Failed to get server:", error);
     return NextResponse.json(
       { error: "Failed to get server" },
       { status: 500 }
@@ -103,7 +104,8 @@ export async function PATCH(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { apiKey: _omit, ...safe } = updated;
     return NextResponse.json({ ...safe, apiKeyMasked: maskApiKey(updated.apiKey) });
-  } catch {
+  } catch (error) {
+    console.error("Failed to update server:", error);
     return NextResponse.json(
       { error: "Failed to update server" },
       { status: 500 }
@@ -132,7 +134,8 @@ export async function DELETE(
 
     await db.delete(server).where(eq(server.id, id));
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Failed to delete server:", error);
     return NextResponse.json(
       { error: "Failed to delete server" },
       { status: 500 }

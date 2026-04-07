@@ -28,7 +28,8 @@ export async function GET() {
     }));
 
     return NextResponse.json(safe);
-  } catch {
+  } catch (error) {
+    console.error("Failed to list servers:", error);
     return NextResponse.json(
       { error: "Failed to list servers" },
       { status: 500 }
@@ -88,7 +89,8 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { apiKey: _omit, ...safe } = newServer;
     return NextResponse.json({ ...safe, apiKeyMasked: maskApiKey(apiKey) }, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("Failed to create server:", error);
     return NextResponse.json(
       { error: "Failed to create server" },
       { status: 500 }
