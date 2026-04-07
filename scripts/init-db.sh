@@ -93,6 +93,11 @@ CREATE TABLE IF NOT EXISTS server (
   created_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)),
   updated_at INTEGER NOT NULL DEFAULT (cast(unixepoch('subsecond') * 1000 as integer))
 );
+
 SQL
+
+# Migrations: add columns that may be missing from older databases
+# SQLite doesn't support IF NOT EXISTS on ADD COLUMN, so ignore errors
+sqlite3 "$DB_PATH" "ALTER TABLE server ADD COLUMN user_id TEXT REFERENCES user(id) ON DELETE CASCADE;" 2>/dev/null || true
 
 echo "Database initialized successfully."
