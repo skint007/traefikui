@@ -41,6 +41,7 @@ export default function RoutersPage() {
             <ResourceTable<TraefikRouter>
               data={sorted}
               emptyMessage="No HTTP routers found"
+              searchField={(r) => r.name ?? ""}
               columns={[
                 {
                   header: "Name",

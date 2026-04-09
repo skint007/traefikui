@@ -41,6 +41,7 @@ export default function ServicesPage() {
             <ResourceTable<TraefikService>
               data={sorted}
               emptyMessage="No HTTP services found"
+              searchField={(s) => s.name ?? ""}
               columns={[
                 {
                   header: "Name",

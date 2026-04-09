@@ -319,7 +319,7 @@ export default function GlobalOverviewPage() {
                       </td>
                       <td className="px-4 py-3">
                         <Link
-                          href={TYPE_CONFIG[r.type].page}
+                          href={`${TYPE_CONFIG[r.type].page}?search=${encodeURIComponent(r.name)}`}
                           onClick={() => handleJump(r)}
                           className="text-xs text-primary hover:underline"
                         >

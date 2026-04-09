@@ -57,6 +57,7 @@ export default function MiddlewaresPage() {
             <ResourceTable<TraefikMiddleware>
               data={sorted}
               emptyMessage="No HTTP middlewares found"
+              searchField={(m) => m.name ?? ""}
               columns={[
                 {
                   header: "Name",
