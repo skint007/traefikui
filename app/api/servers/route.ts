@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireSession } from "@/lib/require-session";
 import { validateServerUrl } from "@/lib/validate-url";
 
@@ -19,7 +19,7 @@ export async function GET() {
     const servers = await db
       .select()
       .from(server)
-      .where(or(eq(server.userId, userId), isNull(server.userId)))
+      .where(eq(server.userId, userId))
       .all();
 
     const safe = servers.map(({ apiKey, ...rest }) => ({
@@ -29,7 +29,7 @@ export async function GET() {
 
     return NextResponse.json(safe);
   } catch (error) {
-    console.error("Failed to list servers:", error);
+    console.error("Failed to list servers:", error instanceof Error ? error.message : "unknown error");
     return NextResponse.json(
       { error: "Failed to list servers" },
       { status: 500 }
@@ -63,20 +63,17 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     const id = crypto.randomUUID();
 
-    // If this is set as default, clear other defaults for this user
     if (isDefault) {
       await db
         .update(server)
         .set({ isDefault: false })
-        .where(
-          and(eq(server.isDefault, true), or(eq(server.userId, userId), isNull(server.userId)))
-        );
+        .where(and(eq(server.isDefault, true), eq(server.userId, userId)));
     }
 
     const newServer = {
       id,
       name,
-      url: url.replace(/\/+$/, ""), // strip trailing slashes
+      url: url.replace(/\/+$/, ""),
       apiKey,
       isDefault: isDefault ?? false,
       status: "unknown" as const,
@@ -85,12 +82,11 @@ export async function POST(request: NextRequest) {
 
     await db.insert(server).values(newServer);
 
-    // Return without the real API key
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { apiKey: _omit, ...safe } = newServer;
     return NextResponse.json({ ...safe, apiKeyMasked: maskApiKey(apiKey) }, { status: 201 });
   } catch (error) {
-    console.error("Failed to create server:", error);
+    console.error("Failed to create server:", error instanceof Error ? error.message : "unknown error");
     return NextResponse.json(
       { error: "Failed to create server" },
       { status: 500 }

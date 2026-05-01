@@ -11,15 +11,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/config/list");
+      const data = await proxyToAgent(serverId, session.user.id, "/config/list");
       return NextResponse.json(data);
     }
 
     const files = await listConfigFiles();
     return NextResponse.json(files);
   } catch (error) {
+    console.error("config/list failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to list config files" },
+      { error: "Failed to list config files" },
       { status: 500 }
     );
   }

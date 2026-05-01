@@ -18,8 +18,9 @@ export async function GET(request: NextRequest) {
     const data = await readTemplateFile(filePath);
     return NextResponse.json(data);
   } catch (error) {
+    console.error("templates/read failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to read template" },
+      { error: "Failed to read template" },
       { status: 500 }
     );
   }

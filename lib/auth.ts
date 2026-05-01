@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { nextCookies } from "better-auth/next-js";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { count } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "./db/schema";
 import {
@@ -25,6 +25,16 @@ function createAuth() {
       provider: "sqlite",
       schema,
     }),
+    user: {
+      additionalFields: {
+        role: {
+          type: "string",
+          required: false,
+          defaultValue: "user",
+          input: false,
+        },
+      },
+    },
     emailAndPassword: {
       enabled: true,
     },
@@ -38,14 +48,38 @@ function createAuth() {
             }
             return undefined;
           },
-          after: async () => {
-            const result = await db
-              .select({ total: count() })
-              .from(schema.user)
-              .get();
-            if (result && result.total >= 1) {
-              await setRegistrationEnabled(false);
-            }
+          after: async (user) => {
+            // Run inside a sqlite transaction so the count check and the
+            // role/registration writes can't interleave with another concurrent
+            // signup.
+            db.transaction((tx) => {
+              const totals = tx
+                .select({ total: count() })
+                .from(schema.user)
+                .get();
+              const total = totals?.total ?? 0;
+
+              // First user becomes admin; subsequent users default to "user".
+              if (total === 1) {
+                tx.update(schema.user)
+                  .set({ role: "admin" })
+                  .where(eq(schema.user.id, user.id))
+                  .run();
+              }
+
+              // Auto-disable registration once any user exists.
+              if (total >= 1) {
+                tx.insert(schema.appSettings)
+                  .values({ key: "registration_enabled", value: "false" })
+                  .onConflictDoUpdate({
+                    target: schema.appSettings.key,
+                    set: { value: "false" },
+                  })
+                  .run();
+              }
+            });
+            // Touch the async setter so any external listeners stay in sync.
+            await setRegistrationEnabled(false).catch(() => undefined);
           },
         },
       },

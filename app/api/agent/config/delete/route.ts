@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
     await deleteConfigFile(filePath);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete config file" },
+      { error: "Failed to delete config file" },
       { status: 500 }
     );
   }

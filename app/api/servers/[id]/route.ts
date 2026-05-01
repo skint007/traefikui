@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { requireSession } from "@/lib/require-session";
 import { validateServerUrl } from "@/lib/validate-url";
 
@@ -11,7 +11,7 @@ function maskApiKey(apiKey: string): string {
 }
 
 function ownerFilter(id: string, userId: string) {
-  return and(eq(server.id, id), or(eq(server.userId, userId), isNull(server.userId)));
+  return and(eq(server.id, id), eq(server.userId, userId));
 }
 
 export async function GET(
@@ -36,7 +36,7 @@ export async function GET(
     const { apiKey, ...safe } = result;
     return NextResponse.json({ ...safe, apiKeyMasked: maskApiKey(apiKey) });
   } catch (error) {
-    console.error("Failed to get server:", error);
+    console.error("Failed to get server:", error instanceof Error ? error.message : "unknown error");
     return NextResponse.json(
       { error: "Failed to get server" },
       { status: 500 }
@@ -66,14 +66,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
 
-    // If setting as default, clear other defaults for this user
     if (isDefault) {
       await db
         .update(server)
         .set({ isDefault: false })
-        .where(
-          and(eq(server.isDefault, true), or(eq(server.userId, userId), isNull(server.userId)))
-        );
+        .where(and(eq(server.isDefault, true), eq(server.userId, userId)));
     }
 
     if (url !== undefined) {
@@ -91,12 +88,14 @@ export async function PATCH(
     if (url !== undefined) updates.url = url.replace(/\/+$/, "");
     if (apiKey !== undefined) updates.apiKey = apiKey;
     if (isDefault !== undefined) updates.isDefault = isDefault;
-    // Assign ownership if not already set
-    if (!existing.userId) updates.userId = userId;
 
-    await db.update(server).set(updates).where(eq(server.id, id));
+    await db.update(server).set(updates).where(ownerFilter(id, userId));
 
-    const updated = await db.select().from(server).where(eq(server.id, id)).get();
+    const updated = await db
+      .select()
+      .from(server)
+      .where(ownerFilter(id, userId))
+      .get();
     if (!updated) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
@@ -105,7 +104,7 @@ export async function PATCH(
     const { apiKey: _omit, ...safe } = updated;
     return NextResponse.json({ ...safe, apiKeyMasked: maskApiKey(updated.apiKey) });
   } catch (error) {
-    console.error("Failed to update server:", error);
+    console.error("Failed to update server:", error instanceof Error ? error.message : "unknown error");
     return NextResponse.json(
       { error: "Failed to update server" },
       { status: 500 }
@@ -122,20 +121,21 @@ export async function DELETE(
 
   try {
     const { id } = await params;
+    const userId = session.user.id;
     const existing = await db
       .select()
       .from(server)
-      .where(ownerFilter(id, session.user.id))
+      .where(ownerFilter(id, userId))
       .get();
 
     if (!existing) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
 
-    await db.delete(server).where(eq(server.id, id));
+    await db.delete(server).where(ownerFilter(id, userId));
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Failed to delete server:", error);
+    console.error("Failed to delete server:", error instanceof Error ? error.message : "unknown error");
     return NextResponse.json(
       { error: "Failed to delete server" },
       { status: 500 }

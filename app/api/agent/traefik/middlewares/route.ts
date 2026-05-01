@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
     const data = await getMiddlewares();
     return NextResponse.json(data);
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch middlewares" },
+      { error: "Failed to fetch middlewares" },
       { status: 502 }
     );
   }

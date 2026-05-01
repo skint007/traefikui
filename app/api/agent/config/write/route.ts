@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
     await writeConfigFile(filePath, content);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to write config file" },
+      { error: "Failed to write config file" },
       { status: 500 }
     );
   }

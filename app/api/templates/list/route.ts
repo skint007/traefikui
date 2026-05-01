@@ -10,8 +10,9 @@ export async function GET() {
     const files = await listTemplateFiles();
     return NextResponse.json(files);
   } catch (error) {
+    console.error("templates/list failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to list templates" },
+      { error: "Failed to list templates" },
       { status: 500 }
     );
   }

@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
     const files = await listConfigFiles();
     return NextResponse.json(files);
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to list config files" },
+      { error: "Failed to list config files" },
       { status: 500 }
     );
   }

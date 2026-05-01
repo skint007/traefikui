@@ -24,8 +24,13 @@ const nextConfig: NextConfig = {
         },
         {
           key: "Content-Security-Policy",
+          // 'unsafe-inline' on style-src is required by shadcn/Radix UI primitives
+          // which inject runtime style attributes. 'unsafe-eval' has been removed
+          // from script-src — CodeMirror does not require eval. 'unsafe-inline' on
+          // script-src is retained because Next.js 15 still emits inline bootstrap
+          // scripts; revisit once nonce-based CSP support is stable.
           value:
-            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';",
+            "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none';",
         },
       ],
     },

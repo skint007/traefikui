@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { user } from "@/lib/db/schema";
 import { asc } from "drizzle-orm";
-import { requireSession } from "@/lib/require-session";
+import { requireAdmin } from "@/lib/require-session";
 
 export async function GET() {
-  const session = await requireSession();
+  const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
   try {
@@ -16,6 +16,7 @@ export async function GET() {
         email: user.email,
         createdAt: user.createdAt,
         twoFactorEnabled: user.twoFactorEnabled,
+        role: user.role,
       })
       .from(user)
       .orderBy(asc(user.createdAt))

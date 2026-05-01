@@ -20,8 +20,9 @@ export async function POST(request: NextRequest) {
     await writeTemplateFile(filePath, content);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("templates/write failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to write template" },
+      { error: "Failed to write template" },
       { status: 500 }
     );
   }

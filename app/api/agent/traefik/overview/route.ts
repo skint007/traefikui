@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
     const data = await getOverview();
     return NextResponse.json(data);
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch overview" },
+      { error: "Failed to fetch overview" },
       { status: 502 }
     );
   }

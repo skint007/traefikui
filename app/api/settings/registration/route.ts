@@ -4,7 +4,7 @@ import {
   isRegistrationEnabled,
   setRegistrationEnabled,
 } from "@/lib/app-settings";
-import { requireSession } from "@/lib/require-session";
+import { requireAdmin } from "@/lib/require-session";
 
 const RegistrationSchema = z.object({
   enabled: z.boolean(),
@@ -23,9 +23,10 @@ export async function GET() {
   }
 }
 
-// Protected - requires authenticated session
+// Admin-only — letting any logged-in user re-enable registration would bypass
+// the single-admin install model and let lateral attackers mint accounts.
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
   try {

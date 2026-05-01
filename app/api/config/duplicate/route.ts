@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/config/duplicate", {
+      const data = await proxyToAgent(serverId, session.user.id, "/config/duplicate", {
         method: "POST",
         body: { sourcePath, destPath },
       });
@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
     await copyConfigFile(sourcePath, destPath);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("config/duplicate failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to duplicate config file" },
+      { error: "Failed to duplicate config file" },
       { status: 500 }
     );
   }

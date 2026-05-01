@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
     const map = await buildResourceFileMap();
     return NextResponse.json(map);
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to build resource map" },
+      { error: "Failed to build resource map" },
       { status: 500 }
     );
   }

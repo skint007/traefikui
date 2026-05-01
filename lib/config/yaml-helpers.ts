@@ -6,17 +6,30 @@ const CONFIG_DIR = process.env.CONFIG_DIR ?? "/traefik-config";
 const DATA_DIR = process.env.DATABASE_URL?.replace("file:", "").replace(/\/[^/]+$/, "") ?? "./data";
 const TEMPLATES_DIR = path.join(DATA_DIR, "templates");
 
+function isInside(parent: string, child: string): boolean {
+  const parentResolved = path.resolve(parent);
+  const childResolved = path.resolve(child);
+  if (childResolved === parentResolved) return true;
+  return childResolved.startsWith(parentResolved + path.sep);
+}
+
 function resolveConfigPath(filePath: string): string {
+  if (path.isAbsolute(filePath)) {
+    throw new Error("Path traversal attempt detected");
+  }
   const resolved = path.resolve(CONFIG_DIR, filePath);
-  if (!resolved.startsWith(path.resolve(CONFIG_DIR))) {
+  if (!isInside(CONFIG_DIR, resolved)) {
     throw new Error("Path traversal attempt detected");
   }
   return resolved;
 }
 
 function resolveTemplatePath(filePath: string): string {
+  if (path.isAbsolute(filePath)) {
+    throw new Error("Path traversal attempt detected");
+  }
   const resolved = path.resolve(TEMPLATES_DIR, filePath);
-  if (!resolved.startsWith(path.resolve(TEMPLATES_DIR))) {
+  if (!isInside(TEMPLATES_DIR, resolved)) {
     throw new Error("Path traversal attempt detected");
   }
   return resolved;

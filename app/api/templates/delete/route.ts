@@ -20,8 +20,9 @@ export async function POST(request: NextRequest) {
     await deleteTemplateFile(filePath);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("templates/delete failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to delete template" },
+      { error: "Failed to delete template" },
       { status: 500 }
     );
   }

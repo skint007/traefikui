@@ -10,8 +10,9 @@ export async function GET(request: NextRequest) {
     const data = await getEntrypoints();
     return NextResponse.json(data);
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to fetch entrypoints" },
+      { error: "Failed to fetch entrypoints" },
       { status: 502 }
     );
   }

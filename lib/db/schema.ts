@@ -19,6 +19,7 @@ export const user = sqliteTable("user", {
   twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" }).default(
     false,
   ),
+  role: text("role", { enum: ["admin", "user"] }).default("user").notNull(),
 });
 
 export const session = sqliteTable(
@@ -110,7 +111,9 @@ export const server = sqliteTable("server", {
   name: text("name").notNull(),
   url: text("url").notNull(),
   apiKey: text("api_key").notNull(),
-  userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" }),
   isDefault: integer("is_default", { mode: "boolean" })
     .default(false)
     .notNull(),

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { eq, and, or, isNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { checkAgentHealth } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
 
@@ -14,10 +14,11 @@ export async function GET(
 
   try {
     const { id } = await params;
+    const userId = session.user.id;
     const srv = await db
       .select()
       .from(server)
-      .where(and(eq(server.id, id), or(eq(server.userId, session.user.id), isNull(server.userId))))
+      .where(and(eq(server.id, id), eq(server.userId, userId)))
       .get();
 
     if (!srv) {
@@ -26,14 +27,13 @@ export async function GET(
 
     const health = await checkAgentHealth(srv.url, srv.apiKey);
 
-    // Update server status
     await db
       .update(server)
       .set({
         status: health.ok ? "online" : "offline",
         lastSeen: health.ok ? new Date() : srv.lastSeen,
       })
-      .where(eq(server.id, id));
+      .where(and(eq(server.id, id), eq(server.userId, userId)));
 
     return NextResponse.json(health);
   } catch {

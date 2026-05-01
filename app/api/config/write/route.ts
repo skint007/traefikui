@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/config/write", {
+      const data = await proxyToAgent(serverId, session.user.id, "/config/write", {
         method: "POST",
         body: { filePath, content },
       });
@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
     await writeConfigFile(filePath, content);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("config/write failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to write config file" },
+      { error: "Failed to write config file" },
       { status: 500 }
     );
   }

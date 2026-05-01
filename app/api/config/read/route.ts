@@ -19,15 +19,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, `/config/read?path=${encodeURIComponent(filePath)}`);
+      const data = await proxyToAgent(serverId, session.user.id, `/config/read?path=${encodeURIComponent(filePath)}`);
       return NextResponse.json(data);
     }
 
     const result = await readConfigFile(filePath);
     return NextResponse.json(result);
   } catch (error) {
+    console.error("config/read failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to read config file" },
+      { error: "Failed to read config file" },
       { status: 500 }
     );
   }

@@ -18,8 +18,9 @@ export async function GET(request: NextRequest) {
     const data = await readConfigFile(filePath);
     return NextResponse.json(data);
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to read config file" },
+      { error: "Failed to read config file" },
       { status: 500 }
     );
   }

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/config/rename", {
+      const data = await proxyToAgent(serverId, session.user.id, "/config/rename", {
         method: "POST",
         body: { oldPath, newPath },
       });
@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
     await renameConfigFile(oldPath, newPath);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("config/rename failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to rename config file" },
+      { error: "Failed to rename config file" },
       { status: 500 }
     );
   }

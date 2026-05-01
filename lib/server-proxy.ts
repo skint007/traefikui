@@ -1,21 +1,51 @@
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { validateServerUrl, validateResolvedHost } from "@/lib/validate-url";
 
-export async function getServerById(serverId: string) {
-  const result = await db.select().from(server).where(eq(server.id, serverId)).get();
-  if (!result) throw new Error(`Server "${serverId}" not found`);
+/**
+ * Look up a server row scoped to its owner. The ownership filter is enforced
+ * inside the helper so callers can't accidentally widen access by forgetting
+ * to add it.
+ */
+export async function getServerById(serverId: string, ownerUserId: string) {
+  const result = await db
+    .select()
+    .from(server)
+    .where(and(eq(server.id, serverId), eq(server.userId, ownerUserId)))
+    .get();
+  if (!result) throw new Error("Server not found");
   return result;
+}
+
+/**
+ * Dispatch an outbound request to a server URL after re-validating the URL
+ * string and DNS resolution. Defeats DNS-rebinding bypasses of the syntactic
+ * check performed at registration time.
+ */
+async function safeFetch(url: string, init: RequestInit): Promise<Response> {
+  const urlCheck = validateServerUrl(url);
+  if (!urlCheck.valid) {
+    throw new Error(`Blocked outbound request: ${urlCheck.error ?? "invalid URL"}`);
+  }
+  const parsed = new URL(url);
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+  const resolved = await validateResolvedHost(hostname);
+  if (!resolved.valid) {
+    throw new Error(`Blocked outbound request: ${resolved.error}`);
+  }
+  return fetch(url, init);
 }
 
 export async function proxyToAgent<T>(
   serverId: string,
+  ownerUserId: string,
   agentPath: string,
-  options?: { method?: string; body?: unknown }
+  options?: { method?: string; body?: unknown },
 ): Promise<T> {
-  const srv = await getServerById(serverId);
+  const srv = await getServerById(serverId, ownerUserId);
 
-  const res = await fetch(`${srv.url}/api/agent${agentPath}`, {
+  const res = await safeFetch(`${srv.url}/api/agent${agentPath}`, {
     method: options?.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
@@ -35,10 +65,10 @@ export async function proxyToAgent<T>(
 
 export async function checkAgentHealth(
   url: string,
-  apiKey: string
+  apiKey: string,
 ): Promise<{ ok: boolean; version?: string; error?: string }> {
   try {
-    const res = await fetch(`${url}/api/agent/health`, {
+    const res = await safeFetch(`${url}/api/agent/health`, {
       headers: { "X-API-Key": apiKey },
       signal: AbortSignal.timeout(5000),
     });

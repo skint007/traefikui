@@ -4,7 +4,7 @@ import {
   getLocalInstanceName,
   setLocalInstanceName,
 } from "@/lib/app-settings";
-import { requireSession } from "@/lib/require-session";
+import { requireSession, requireAdmin } from "@/lib/require-session";
 
 const LocalNameSchema = z.object({
   name: z.string().min(1).max(255).trim(),
@@ -25,8 +25,9 @@ export async function GET() {
   }
 }
 
+// Admin-only — local instance name is a global setting visible to all users.
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
   try {

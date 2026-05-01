@@ -13,3 +13,19 @@ export async function requireSession() {
   }
   return session;
 }
+
+/**
+ * Validates the session and asserts the user is an admin.
+ * Returns the session if admin, otherwise a 401/403 NextResponse.
+ *
+ * Use for endpoints that expose cross-tenant data or change global settings.
+ */
+export async function requireAdmin() {
+  const session = await requireSession();
+  if (session instanceof NextResponse) return session;
+  const role = (session.user as { role?: string }).role;
+  if (role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  return session;
+}

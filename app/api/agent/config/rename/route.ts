@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
     await renameConfigFile(oldPath, newPath);
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to rename config file" },
+      { error: "Failed to rename config file" },
       { status: 500 }
     );
   }
