@@ -4,32 +4,49 @@ import * as net from "net";
 export type ValidateResult = { valid: boolean; error?: string };
 
 /**
- * Validates a single IPv4 address against private/loopback/link-local ranges.
- * Includes cloud-metadata IP (169.254.169.254).
+ * Strict mode also blocks RFC1918 / IPv6 ULA / CGNAT — the ranges normally
+ * used by Docker bridge networks and LANs. Default is off so that the typical
+ * deployment (master + agent on the same Docker network, reaching each other
+ * by service name) works out of the box.
+ *
+ * Loopback (127.0.0.0/8, ::1), link-local (169.254.0.0/16 incl. cloud
+ * metadata, fe80::/10), unspecified (0.0.0.0/8), and multicast are blocked
+ * unconditionally — those are the high-impact SSRF targets a malicious agent
+ * URL would aim at.
  */
+function strictMode(): boolean {
+  const v = process.env.TRAEFIKUI_STRICT_SSRF;
+  return v === "1" || v === "true";
+}
+
 function isBlockedIPv4(addr: string): { blocked: boolean; reason?: string } {
   const parts = addr.split(".").map(Number);
   if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
     return { blocked: true, reason: "Invalid IPv4 address" };
   }
   const [a, b] = parts;
+
+  // Always blocked — high-impact SSRF targets.
   if (a === 127) return { blocked: true, reason: "Loopback address" };
-  if (a === 10) return { blocked: true, reason: "Private network address" };
-  if (a === 172 && b >= 16 && b <= 31) return { blocked: true, reason: "Private network address" };
-  if (a === 192 && b === 168) return { blocked: true, reason: "Private network address" };
-  if (a === 169 && b === 254) return { blocked: true, reason: "Link-local address" };
+  if (a === 169 && b === 254) return { blocked: true, reason: "Link-local address (incl. cloud metadata)" };
   if (a === 0) return { blocked: true, reason: "Invalid address range" };
-  if (a === 100 && b >= 64 && b <= 127) return { blocked: true, reason: "CGNAT address" };
   if (a >= 224) return { blocked: true, reason: "Multicast/reserved address" };
+
+  // Blocked only in strict mode — needed for Docker/LAN deployments by default.
+  if (strictMode()) {
+    if (a === 10) return { blocked: true, reason: "Private network address" };
+    if (a === 172 && b >= 16 && b <= 31) return { blocked: true, reason: "Private network address" };
+    if (a === 192 && b === 168) return { blocked: true, reason: "Private network address" };
+    if (a === 100 && b >= 64 && b <= 127) return { blocked: true, reason: "CGNAT address" };
+  }
+
   return { blocked: false };
 }
 
-/**
- * Validates a single IPv6 address. Blocks loopback, link-local, ULA,
- * IPv4-mapped IPv6 that resolves to a blocked IPv4, and unspecified.
- */
 function isBlockedIPv6(addr: string): { blocked: boolean; reason?: string } {
   const lower = addr.toLowerCase();
+
+  // Always blocked.
   if (lower === "::" || lower === "::1") {
     return { blocked: true, reason: "Loopback/unspecified IPv6 address" };
   }
@@ -37,17 +54,15 @@ function isBlockedIPv6(addr: string): { blocked: boolean; reason?: string } {
       lower.startsWith("fea") || lower.startsWith("feb")) {
     return { blocked: true, reason: "Link-local IPv6 address" };
   }
-  if (lower.startsWith("fc") || lower.startsWith("fd")) {
-    return { blocked: true, reason: "Unique local IPv6 address" };
-  }
-  // IPv4-mapped IPv6 (::ffff:a.b.c.d) — extract the embedded IPv4
+
+  // IPv4-mapped IPv6 (::ffff:a.b.c.d) — extract the embedded IPv4 and apply
+  // the IPv4 policy (which itself respects strict mode).
   const mappedDotted = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
   if (mappedDotted) {
     const v4 = isBlockedIPv4(mappedDotted[1]);
     if (v4.blocked) return v4;
   }
-  // Node's URL parser normalizes ::ffff:127.0.0.1 → ::ffff:7f00:1 — also handle
-  // the hex form so an IPv4-mapped attacker can't slip past via canonicalization.
+  // Node's URL parser normalizes ::ffff:127.0.0.1 → ::ffff:7f00:1.
   const mappedHex = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
   if (mappedHex) {
     const high = parseInt(mappedHex[1], 16);
@@ -56,6 +71,14 @@ function isBlockedIPv6(addr: string): { blocked: boolean; reason?: string } {
     const v4 = isBlockedIPv4(dotted);
     if (v4.blocked) return v4;
   }
+
+  // Blocked only in strict mode.
+  if (strictMode()) {
+    if (lower.startsWith("fc") || lower.startsWith("fd")) {
+      return { blocked: true, reason: "Unique local IPv6 address" };
+    }
+  }
+
   return { blocked: false };
 }
 
@@ -64,7 +87,7 @@ function isBlockedHostname(hostname: string): { blocked: boolean; reason?: strin
   if (h === "localhost" || h === "0.0.0.0" || h.endsWith(".localhost")) {
     return { blocked: true, reason: "Localhost is not allowed" };
   }
-  // Cloud metadata service hostnames
+  // Cloud metadata service hostnames — always blocked, even outside strict mode.
   const metadataHosts = new Set([
     "metadata.google.internal",
     "metadata",
@@ -113,15 +136,16 @@ export function validateServerUrl(urlString: string): ValidateResult {
 
 /**
  * Resolves the hostname and validates every returned address against the
- * private-IP block list. Call this immediately before dispatching an outbound
- * request to defeat TOCTOU/DNS-rebinding bypasses of validateServerUrl.
+ * block list. Call this immediately before dispatching an outbound request
+ * to defeat TOCTOU/DNS-rebinding bypasses of validateServerUrl.
  *
- * Returns the resolved address to pin against, or an error.
+ * Note: a small TOCTOU window remains between this resolution and the actual
+ * fetch. To close it fully, switch to an undici Agent with a pinned-IP lookup
+ * — left for follow-up work.
  */
 export async function validateResolvedHost(
   hostname: string,
 ): Promise<{ valid: true; addresses: string[] } | { valid: false; error: string }> {
-  // If hostname is already a literal IP, validate it directly.
   const stripped = hostname.replace(/^\[|\]$/g, "");
   if (net.isIPv4(stripped)) {
     const v = isBlockedIPv4(stripped);
