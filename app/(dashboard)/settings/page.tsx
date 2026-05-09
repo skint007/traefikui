@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useServers,
   useCreateServer,
@@ -38,6 +38,7 @@ import {
   Monitor,
   Users,
   ShieldEllipsis,
+  ShieldOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,7 @@ interface AppUser {
   email: string;
   createdAt: number;
   twoFactorEnabled: boolean | null;
+  role: "admin" | "user";
 }
 
 interface ServerFormData {
@@ -81,6 +83,7 @@ export default function SettingsPage() {
   const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null);
   const [registrationLoading, setRegistrationLoading] = useState(true);
 
+  const queryClient = useQueryClient();
   const { data: users, isLoading: loadingUsers } = useQuery<AppUser[]>({
     queryKey: ["settings", "users"],
     queryFn: async () => {
@@ -89,6 +92,26 @@ export default function SettingsPage() {
       return res.json();
     },
   });
+
+  const updateRole = useMutation({
+    mutationFn: async ({ id, role }: { id: string; role: "admin" | "user" }) => {
+      const res = await fetch(`/api/settings/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Failed to update role");
+      }
+      return res.json() as Promise<{ id: string; role: "admin" | "user" }>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["settings", "users"] });
+    },
+  });
+
+  const adminCount = users?.filter((u) => u.role === "admin").length ?? 0;
 
   const { data: localName } = useLocalInstanceName();
   const updateLocalName = useUpdateLocalInstanceName();
@@ -227,39 +250,83 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {updateRole.error && (
+            <p className="mb-3 text-sm text-destructive">
+              {updateRole.error.message}
+            </p>
+          )}
           {loadingUsers ? (
             <p className="text-sm text-muted-foreground">Loading users...</p>
           ) : !users?.length ? (
             <p className="text-sm text-muted-foreground">No registered users</p>
           ) : (
             <div className="space-y-2">
-              {users.map((u) => (
-                <div
-                  key={u.id}
-                  className="flex items-center justify-between rounded-lg border px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
-                      {u.name.charAt(0).toUpperCase()}
+              {users.map((u) => {
+                const isLastAdmin = u.role === "admin" && adminCount <= 1;
+                const targetRole = u.role === "admin" ? "user" : "admin";
+                const canChange = isAdmin && !isLastAdmin;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center justify-between rounded-lg border px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-medium">
+                        {u.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <span className="font-medium">{u.name}</span>
+                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium">{u.name}</span>
-                      <p className="text-xs text-muted-foreground">{u.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {u.twoFactorEnabled && (
-                      <Badge variant="secondary" className="text-xs gap-1">
-                        <ShieldEllipsis className="h-3 w-3" />
-                        2FA
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={u.role === "admin" ? "default" : "secondary"}
+                        className="text-xs"
+                      >
+                        {u.role === "admin" ? "Admin" : "User"}
                       </Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      Joined {new Date(u.createdAt).toLocaleDateString()}
-                    </span>
+                      {u.twoFactorEnabled && (
+                        <Badge variant="secondary" className="text-xs gap-1">
+                          <ShieldEllipsis className="h-3 w-3" />
+                          2FA
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        Joined {new Date(u.createdAt).toLocaleDateString()}
+                      </span>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 text-xs"
+                          disabled={!canChange || updateRole.isPending}
+                          title={
+                            isLastAdmin
+                              ? "Promote another user before demoting the last admin"
+                              : undefined
+                          }
+                          onClick={() =>
+                            updateRole.mutate({ id: u.id, role: targetRole })
+                          }
+                        >
+                          {u.role === "admin" ? (
+                            <>
+                              <ShieldOff className="mr-1 h-3.5 w-3.5" />
+                              Revoke admin
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck className="mr-1 h-3.5 w-3.5" />
+                              Make admin
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
