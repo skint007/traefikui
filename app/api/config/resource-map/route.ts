@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     const serverId = request.nextUrl.searchParams.get("serverId");
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/config/resource-map");
+      const data = await proxyToAgent(serverId, "/config/resource-map");
       return NextResponse.json(data);
     }
 

@@ -1,18 +1,13 @@
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { validateServerUrl, validateResolvedHost } from "@/lib/validate-url";
 
-/**
- * Look up a server row scoped to its owner. The ownership filter is enforced
- * inside the helper so callers can't accidentally widen access by forgetting
- * to add it.
- */
-export async function getServerById(serverId: string, ownerUserId: string) {
+export async function getServerById(serverId: string) {
   const result = await db
     .select()
     .from(server)
-    .where(and(eq(server.id, serverId), eq(server.userId, ownerUserId)))
+    .where(eq(server.id, serverId))
     .get();
   if (!result) throw new Error("Server not found");
   return result;
@@ -39,11 +34,10 @@ async function safeFetch(url: string, init: RequestInit): Promise<Response> {
 
 export async function proxyToAgent<T>(
   serverId: string,
-  ownerUserId: string,
   agentPath: string,
   options?: { method?: string; body?: unknown },
 ): Promise<T> {
-  const srv = await getServerById(serverId, ownerUserId);
+  const srv = await getServerById(serverId);
 
   const res = await safeFetch(`${srv.url}/api/agent${agentPath}`, {
     method: options?.method ?? "GET",

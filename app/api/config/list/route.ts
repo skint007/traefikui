@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/config/list");
+      const data = await proxyToAgent(serverId, "/config/list");
       return NextResponse.json(data);
     }
 

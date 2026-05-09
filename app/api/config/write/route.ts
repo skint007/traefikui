@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/config/write", {
+      const data = await proxyToAgent(serverId, "/config/write", {
         method: "POST",
         body: { filePath, content },
       });

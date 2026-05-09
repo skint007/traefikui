@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/config/rename", {
+      const data = await proxyToAgent(serverId, "/config/rename", {
         method: "POST",
         body: { oldPath, newPath },
       });

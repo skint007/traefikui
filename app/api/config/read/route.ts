@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, `/config/read?path=${encodeURIComponent(filePath)}`);
+      const data = await proxyToAgent(serverId, `/config/read?path=${encodeURIComponent(filePath)}`);
       return NextResponse.json(data);
     }
 

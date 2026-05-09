@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { requireSession } from "@/lib/require-session";
+import { eq, and, ne } from "drizzle-orm";
+import { requireSession, requireAdmin } from "@/lib/require-session";
 import { validateServerUrl } from "@/lib/validate-url";
 
 function maskApiKey(apiKey: string): string {
   if (apiKey.length <= 8) return "••••••••";
   return apiKey.slice(0, 4) + "••••" + apiKey.slice(-4);
-}
-
-function ownerFilter(id: string, userId: string) {
-  return and(eq(server.id, id), eq(server.userId, userId));
 }
 
 export async function GET(
@@ -26,7 +22,7 @@ export async function GET(
     const result = await db
       .select()
       .from(server)
-      .where(ownerFilter(id, session.user.id))
+      .where(eq(server.id, id))
       .get();
 
     if (!result) {
@@ -48,19 +44,18 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
   try {
     const { id } = await params;
-    const userId = session.user.id;
     const body = await request.json();
     const { name, url, apiKey, isDefault } = body;
 
     const existing = await db
       .select()
       .from(server)
-      .where(ownerFilter(id, userId))
+      .where(eq(server.id, id))
       .get();
     if (!existing) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
@@ -70,7 +65,7 @@ export async function PATCH(
       await db
         .update(server)
         .set({ isDefault: false })
-        .where(and(eq(server.isDefault, true), eq(server.userId, userId)));
+        .where(and(eq(server.isDefault, true), ne(server.id, id)));
     }
 
     if (url !== undefined) {
@@ -89,12 +84,12 @@ export async function PATCH(
     if (apiKey !== undefined) updates.apiKey = apiKey;
     if (isDefault !== undefined) updates.isDefault = isDefault;
 
-    await db.update(server).set(updates).where(ownerFilter(id, userId));
+    await db.update(server).set(updates).where(eq(server.id, id));
 
     const updated = await db
       .select()
       .from(server)
-      .where(ownerFilter(id, userId))
+      .where(eq(server.id, id))
       .get();
     if (!updated) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
@@ -116,23 +111,22 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
   try {
     const { id } = await params;
-    const userId = session.user.id;
     const existing = await db
       .select()
       .from(server)
-      .where(ownerFilter(id, userId))
+      .where(eq(server.id, id))
       .get();
 
     if (!existing) {
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
 
-    await db.delete(server).where(ownerFilter(id, userId));
+    await db.delete(server).where(eq(server.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete server:", error instanceof Error ? error.message : "unknown error");

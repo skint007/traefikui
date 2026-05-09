@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/traefik/routers");
+      const data = await proxyToAgent(serverId, "/traefik/routers");
       return NextResponse.json(data);
     }
 

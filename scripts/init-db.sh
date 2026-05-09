@@ -87,7 +87,6 @@ CREATE TABLE IF NOT EXISTS server (
   name TEXT NOT NULL,
   url TEXT NOT NULL,
   api_key TEXT NOT NULL,
-  user_id TEXT REFERENCES user(id) ON DELETE CASCADE,
   is_default INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'unknown',
   last_seen INTEGER,
@@ -97,24 +96,22 @@ CREATE TABLE IF NOT EXISTS server (
 
 SQL
 
-# Migrations: add columns that may be missing from older databases
-# SQLite doesn't support IF NOT EXISTS on ADD COLUMN, so ignore errors
-sqlite3 "$DB_PATH" "ALTER TABLE server ADD COLUMN user_id TEXT REFERENCES user(id) ON DELETE CASCADE;" 2>/dev/null || true
+# Migrations: bring older databases up to date. SQLite doesn't support
+# IF NOT EXISTS on ADD/DROP COLUMN, so ignore errors when the change has
+# already been applied.
 sqlite3 "$DB_PATH" "ALTER TABLE user ADD COLUMN role TEXT NOT NULL DEFAULT 'user';" 2>/dev/null || true
 
-# Backfill: ensure exactly one admin exists (oldest user becomes admin) and
-# claim any orphaned server rows for that admin so legacy installs upgrade
-# cleanly without leaking cross-tenant access.
+# Servers are now shared globally; drop the per-user ownership column on
+# upgrade. Requires SQLite >= 3.35 (March 2021), which Alpine ships.
+sqlite3 "$DB_PATH" "ALTER TABLE server DROP COLUMN user_id;" 2>/dev/null || true
+
+# Ensure exactly one admin exists (oldest user becomes admin) so the upgraded
+# install has someone with permission to manage the shared server list.
 sqlite3 "$DB_PATH" <<'BACKFILL'
 UPDATE user
 SET role = 'admin'
 WHERE id = (SELECT id FROM user ORDER BY created_at ASC LIMIT 1)
   AND NOT EXISTS (SELECT 1 FROM user WHERE role = 'admin');
-
-UPDATE server
-SET user_id = (SELECT id FROM user WHERE role = 'admin' ORDER BY created_at ASC LIMIT 1)
-WHERE user_id IS NULL
-  AND EXISTS (SELECT 1 FROM user WHERE role = 'admin');
 BACKFILL
 
 echo "Database initialized successfully."

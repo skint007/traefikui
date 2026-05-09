@@ -11,6 +11,7 @@ import {
   useLocalInstanceName,
   useUpdateLocalInstanceName,
 } from "@/hooks/use-servers";
+import { useSession } from "@/lib/auth-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,9 @@ export default function SettingsPage() {
   const createServer = useCreateServer();
   const updateServer = useUpdateServer();
   const deleteServer = useDeleteServer();
+  const { data: session } = useSession();
+  const isAdmin =
+    (session?.user as { role?: string } | undefined)?.role === "admin";
 
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -268,11 +272,18 @@ export default function SettingsPage() {
               <Server className="h-5 w-5" />
               Servers
             </CardTitle>
-            <Button size="sm" onClick={handleOpenCreate}>
-              <Plus className="mr-1 h-4 w-4" />
-              Add Server
-            </Button>
+            {isAdmin && (
+              <Button size="sm" onClick={handleOpenCreate}>
+                <Plus className="mr-1 h-4 w-4" />
+                Add Server
+              </Button>
+            )}
           </div>
+          <CardDescription>
+            {isAdmin
+              ? "Shared list — visible to all users. Only admins can add, edit, or remove servers."
+              : "Shared list — visible to all users. Contact an admin to make changes."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -312,7 +323,7 @@ export default function SettingsPage() {
                   </p>
                 </div>
               </div>
-              {!editingLocalName && (
+              {!editingLocalName && isAdmin && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -337,8 +348,8 @@ export default function SettingsPage() {
                   isTesting={testingId === srv.id}
                   onTest={() => setTestingId(srv.id)}
                   onTestDone={() => setTestingId(null)}
-                  onEdit={() => handleOpenEdit(srv)}
-                  onDelete={() => setDeleteId(srv.id)}
+                  onEdit={isAdmin ? () => handleOpenEdit(srv) : undefined}
+                  onDelete={isAdmin ? () => setDeleteId(srv.id) : undefined}
                 />
               ))
             )}
@@ -490,8 +501,8 @@ function ServerRow({
   isTesting: boolean;
   onTest: () => void;
   onTestDone: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between rounded-lg border px-4 py-3">
@@ -516,17 +527,21 @@ function ServerRow({
           onTest={onTest}
           onDone={onTestDone}
         />
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit}>
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        {onEdit && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-destructive hover:text-destructive"
+            onClick={onDelete}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   );

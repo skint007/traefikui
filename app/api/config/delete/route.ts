@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/config/delete", {
+      const data = await proxyToAgent(serverId, "/config/delete", {
         method: "POST",
         body: { filePath },
       });

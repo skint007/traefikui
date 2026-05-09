@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
-import { requireSession } from "@/lib/require-session";
+import { eq } from "drizzle-orm";
+import { requireSession, requireAdmin } from "@/lib/require-session";
 import { validateServerUrl } from "@/lib/validate-url";
 
 function maskApiKey(apiKey: string): string {
@@ -15,12 +15,7 @@ export async function GET() {
   if (session instanceof NextResponse) return session;
 
   try {
-    const userId = session.user.id;
-    const servers = await db
-      .select()
-      .from(server)
-      .where(eq(server.userId, userId))
-      .all();
+    const servers = await db.select().from(server).all();
 
     const safe = servers.map(({ apiKey, ...rest }) => ({
       ...rest,
@@ -38,7 +33,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
+  const session = await requireAdmin();
   if (session instanceof NextResponse) return session;
 
   try {
@@ -60,14 +55,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = session.user.id;
     const id = crypto.randomUUID();
 
     if (isDefault) {
       await db
         .update(server)
         .set({ isDefault: false })
-        .where(and(eq(server.isDefault, true), eq(server.userId, userId)));
+        .where(eq(server.isDefault, true));
     }
 
     const newServer = {
@@ -77,7 +71,6 @@ export async function POST(request: NextRequest) {
       apiKey,
       isDefault: isDefault ?? false,
       status: "unknown" as const,
-      userId,
     };
 
     await db.insert(server).values(newServer);

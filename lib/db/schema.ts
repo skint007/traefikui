@@ -111,9 +111,6 @@ export const server = sqliteTable("server", {
   name: text("name").notNull(),
   url: text("url").notNull(),
   apiKey: text("api_key").notNull(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => user.id, { onDelete: "cascade" }),
   isDefault: integer("is_default", { mode: "boolean" })
     .default(false)
     .notNull(),

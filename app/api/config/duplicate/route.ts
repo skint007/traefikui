@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, session.user.id, "/config/duplicate", {
+      const data = await proxyToAgent(serverId, "/config/duplicate", {
         method: "POST",
         body: { sourcePath, destPath },
       });
