@@ -1,7 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import {
+  useQueries,
+  type QueryObserverResult,
+} from "@tanstack/react-query";
 import { useServers, useLocalInstanceName } from "@/hooks/use-servers";
 import { useUIStore } from "@/store/ui-store";
 import type {
@@ -38,6 +41,35 @@ export interface GlobalResource {
 interface ServerTarget {
   id: string | null;
   name: string;
+}
+
+type GlobalQueryState = Pick<
+  QueryObserverResult<unknown>,
+  | "data"
+  | "dataUpdatedAt"
+  | "errorUpdatedAt"
+  | "isError"
+  | "isFetched"
+  | "isLoading"
+>;
+
+export function isGlobalResourcesLoading(
+  queries: readonly GlobalQueryState[]
+): boolean {
+  const hasSuccessfulResult = queries.some(
+    (query) => query.data !== undefined
+  );
+  const hasPendingInitialRequest = queries.some((query) => !query.isFetched);
+
+  return !hasSuccessfulResult && hasPendingInitialRequest;
+}
+
+export function hasGlobalQueryError(
+  query: GlobalQueryState | undefined
+): boolean {
+  if (!query) return false;
+
+  return query.isError || query.errorUpdatedAt > query.dataUpdatedAt;
 }
 
 function routersToGlobal(
@@ -136,7 +168,7 @@ export function useAllServersResources() {
     ]),
   });
 
-  const isLoading = queries.some((q) => q.isLoading);
+  const isLoading = isGlobalResourcesLoading(queries);
   const isFetching = queries.some((q) => q.isFetching);
 
   // Combine all results into a flat list of GlobalResource
@@ -175,9 +207,9 @@ export function useAllServersResources() {
         | TraefikMiddleware[]
         | undefined;
       const hasError =
-        queries[base]?.isError ||
-        queries[base + 1]?.isError ||
-        queries[base + 2]?.isError;
+        hasGlobalQueryError(queries[base]) ||
+        hasGlobalQueryError(queries[base + 1]) ||
+        hasGlobalQueryError(queries[base + 2]);
 
       counts[key] = {
         name: target.name,
