@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { YamlEditor } from "@/components/editors/yaml-editor";
+import { DeferredYamlEditor } from "@/components/editors/deferred-yaml-editor";
 import {
   Dialog,
   DialogContent,
@@ -237,7 +237,7 @@ export default function TemplatesPage() {
               </CardContent>
             </Card>
           ) : (
-            <YamlEditor
+            <DeferredYamlEditor
               value={editedContent}
               onChange={handleContentChange}
               height="600px"

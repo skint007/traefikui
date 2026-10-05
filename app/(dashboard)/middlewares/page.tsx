@@ -9,6 +9,7 @@ import {
   ProviderBadge,
   sortByProviderThenName,
 } from "@/components/dashboard/resource-table";
+import { useUIStore } from "@/store/ui-store";
 import type { TraefikMiddleware } from "@/lib/traefik/types";
 
 function getMiddlewareType(m: TraefikMiddleware): string {
@@ -27,6 +28,7 @@ function getMiddlewareType(m: TraefikMiddleware): string {
 }
 
 export default function MiddlewaresPage() {
+  const activeServerId = useUIStore((s) => s.activeServerId);
   const { data: middlewares, isLoading, error } = useMiddlewares();
   const { data: fileMap } = useResourceFileMap();
   const sorted = useMemo(() => sortByProviderThenName(middlewares ?? []), [middlewares]);
@@ -56,6 +58,8 @@ export default function MiddlewaresPage() {
           ) : (
             <ResourceTable<TraefikMiddleware>
               data={sorted}
+              resetKey={activeServerId}
+              getRowKey={(row) => JSON.stringify([activeServerId, row.provider, row.name])}
               emptyMessage="No HTTP middlewares found"
               searchField={(m) => m.name ?? ""}
               columns={[
