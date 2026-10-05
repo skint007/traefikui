@@ -18,9 +18,16 @@ class ConfigWatcher {
   constructor(private readonly configDir: string) {}
 
   start(): Promise<void> {
-    if (this.error) return Promise.reject(this.error);
-    if (this.ready) return this.ready;
+    if (this.ready && !this.error) return this.ready;
 
+    const previous = this.watcher;
+    this.error = undefined;
+    // A later read retries transient watch failures without retaining stale maps.
+    this.ready = (previous?.close() ?? Promise.resolve()).then(() => this.open());
+    return this.ready;
+  }
+
+  private open(): Promise<void> {
     const watcher = watch(this.configDir, {
       ignoreInitial: true,
       persistent: true,
@@ -30,7 +37,7 @@ class ConfigWatcher {
       },
     });
     this.watcher = watcher;
-    this.ready = new Promise((resolve, reject) => {
+    const ready = new Promise<void>((resolve, reject) => {
       watcher.once("ready", resolve);
       watcher.on("error", (error) => {
         this.error = error instanceof Error ? error : new Error("Config watcher failed");
@@ -50,7 +57,7 @@ class ConfigWatcher {
     watcher.on("add", handleEvent("add"));
     watcher.on("change", handleEvent("change"));
     watcher.on("unlink", handleEvent("unlink"));
-    return this.ready;
+    return ready;
   }
 
   subscribe(listener: WatchListener): () => void {
@@ -63,6 +70,7 @@ class ConfigWatcher {
   }
 
   async stop() {
+    await this.ready?.catch(() => {});
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;

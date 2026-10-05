@@ -3,7 +3,13 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { NextRequest } from "next/server";
+import { watch } from "chokidar";
 import { ResourceFileMapCache } from "../resource-map-cache";
+
+vi.mock("chokidar", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("chokidar")>();
+  return { ...actual, watch: vi.fn(actual.watch) };
+});
 
 vi.mock("@/lib/require-session", () => ({
   requireSession: async () => ({ user: { id: "cache-test" } }),
@@ -128,6 +134,19 @@ describe("resource map with real config files", () => {
     expect(await first.buildResourceFileMap()).toEqual({
       ...mapping("one", "one.yaml"), ...mapping("two", "two.yaml"),
     });
+  });
+
+  it("restarts after a transient watcher error and rereads changes missed during failure", async () => {
+    const helpers = await import("../yaml-helpers");
+    await helpers.writeConfigFile("one.yaml", config("one"));
+    expect(await helpers.buildResourceFileMap()).toEqual(mapping("one", "one.yaml"));
+    const result = vi.mocked(watch).mock.results.at(-1);
+    expect(result?.type).toBe("return");
+    if (!result || result.type !== "return") throw new Error("Watcher did not start");
+    result.value.emit("error", new Error("Temporary watch capacity exhaustion"));
+    await fs.writeFile(path.join(directory, "one.yaml"), config("recovered"));
+    expect(await helpers.buildResourceFileMap()).toEqual(mapping("recovered", "one.yaml"));
+    expect(await helpers.buildResourceFileMap()).toEqual(mapping("recovered", "one.yaml"));
   });
 
   it.each(["master", "agent"])("refreshes %s API results after external changes without SSE", async (mode) => {
