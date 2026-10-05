@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { buildResourceFileMap } from "@/lib/config/yaml-helpers";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest) {
     const serverId = request.nextUrl.searchParams.get("serverId");
 
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/config/resource-map");
+      const data = await proxyToAgent(serverId, "/config/resource-map", { signal: request.signal });
       return NextResponse.json(data);
     }
 
@@ -20,8 +21,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("config/resource-map failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: "Failed to build resource map" },
-      { status: 500 }
+      { error: requestErrorMessage(error, "Failed to build resource map") },
+      { status: requestErrorStatus(error, 500) }
     );
   }
 }

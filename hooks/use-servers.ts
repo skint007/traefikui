@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchAPI, resourceRetryOptions } from "@/lib/client-request";
 
 interface Server {
   id: string;
@@ -14,26 +15,19 @@ interface Server {
   updatedAt: string;
 }
 
-async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `API error: ${res.status}`);
-  }
-  return res.json();
-}
-
 export function useServers() {
   return useQuery<Server[]>({
+    ...resourceRetryOptions,
     queryKey: ["servers"],
-    queryFn: () => fetchAPI("/api/servers"),
+    queryFn: ({ signal }) => fetchAPI("/api/servers", { signal }),
   });
 }
 
 export function useServer(id: string | null) {
   return useQuery<Server>({
+    ...resourceRetryOptions,
     queryKey: ["servers", id],
-    queryFn: () => fetchAPI(`/api/servers/${id}`),
+    queryFn: ({ signal }) => fetchAPI(`/api/servers/${id}`, { signal }),
     enabled: !!id,
   });
 }
@@ -96,8 +90,9 @@ export function useDeleteServer() {
 
 export function useServerHealth(id: string | null) {
   return useQuery<{ ok: boolean; version?: string; error?: string }>({
+    ...resourceRetryOptions,
     queryKey: ["servers", id, "health"],
-    queryFn: () => fetchAPI(`/api/servers/${id}/health`),
+    queryFn: ({ signal }) => fetchAPI(`/api/servers/${id}/health`, { signal }),
     enabled: !!id,
     refetchInterval: 30000,
   });
@@ -105,9 +100,10 @@ export function useServerHealth(id: string | null) {
 
 export function useLocalInstanceName() {
   return useQuery<string>({
+    ...resourceRetryOptions,
     queryKey: ["local-instance-name"],
-    queryFn: async () => {
-      const data = await fetchAPI<{ name: string }>("/api/settings/local-name");
+    queryFn: async ({ signal }) => {
+      const data = await fetchAPI<{ name: string }>("/api/settings/local-name", { signal });
       return data.name;
     },
   });

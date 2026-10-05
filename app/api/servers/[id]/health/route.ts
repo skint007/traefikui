@@ -3,10 +3,11 @@ import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { checkAgentHealth } from "@/lib/server-proxy";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { requireSession } from "@/lib/require-session";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await requireSession();
@@ -24,8 +25,9 @@ export async function GET(
       return NextResponse.json({ error: "Server not found" }, { status: 404 });
     }
 
-    const health = await checkAgentHealth(srv.url, srv.apiKey);
+    const health = await checkAgentHealth(srv.url, srv.apiKey, request.signal);
 
+    request.signal.throwIfAborted();
     await db
       .update(server)
       .set({
@@ -35,10 +37,10 @@ export async function GET(
       .where(eq(server.id, id));
 
     return NextResponse.json(health);
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "Health check failed" },
-      { status: 500 }
+      { error: requestErrorMessage(error, "Health check failed") },
+      { status: requestErrorStatus(error, 500) }
     );
   }
 }

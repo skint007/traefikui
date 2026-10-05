@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { getRouters } from "@/lib/traefik/client";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -11,16 +12,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/traefik/routers");
+      const data = await proxyToAgent(serverId, "/traefik/routers", { signal: request.signal });
       return NextResponse.json(data);
     }
 
-    const routers = await getRouters();
+    const routers = await getRouters(request.signal);
     return NextResponse.json(routers);
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch routers" },
-      { status: 502 }
+      { error: requestErrorMessage(error, "Failed to fetch routers") },
+      { status: requestErrorStatus(error, 502) }
     );
   }
 }
