@@ -14,6 +14,7 @@ import type {
 } from "@/lib/traefik/types";
 
 import { traefikQueries } from "@/hooks/traefik-queries";
+import { resourcePollingOptions } from "@/hooks/refresh-policy";
 
 export type ResourceType = "router" | "service" | "middleware";
 
@@ -112,17 +113,17 @@ export function globalResourceQueries(targets: ServerTarget[], pollingInterval: 
     {
       ...traefikQueries.routers(target.id),
       select: (data: TraefikRouter[]) => routersToGlobal(data, target),
-      refetchInterval: pollingInterval,
+      ...resourcePollingOptions(pollingInterval),
     },
     {
       ...traefikQueries.services(target.id),
       select: (data: TraefikService[]) => servicesToGlobal(data, target),
-      refetchInterval: pollingInterval,
+      ...resourcePollingOptions(pollingInterval),
     },
     {
       ...traefikQueries.middlewares(target.id),
       select: (data: TraefikMiddleware[]) => middlewaresToGlobal(data, target),
-      refetchInterval: pollingInterval,
+      ...resourcePollingOptions(pollingInterval),
     },
   ]);
 }
