@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { getMiddlewares } from "@/lib/traefik/client";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -11,16 +12,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/traefik/middlewares");
+      const data = await proxyToAgent(serverId, "/traefik/middlewares", { signal: request.signal });
       return NextResponse.json(data);
     }
 
-    const middlewares = await getMiddlewares();
+    const middlewares = await getMiddlewares(request.signal);
     return NextResponse.json(middlewares);
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch middlewares" },
-      { status: 502 }
+      { error: requestErrorMessage(error, "Failed to fetch middlewares") },
+      { status: requestErrorStatus(error, 502) }
     );
   }
 }

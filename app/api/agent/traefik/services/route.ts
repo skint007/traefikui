@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { requireAgentAuth } from "@/lib/agent-middleware";
 import { getServices } from "@/lib/traefik/client";
 
@@ -7,13 +8,13 @@ export async function GET(request: NextRequest) {
   if (authError) return authError;
 
   try {
-    const data = await getServices();
+    const data = await getServices(request.signal);
     return NextResponse.json(data);
   } catch (error) {
     console.error("agent route failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: "Failed to fetch services" },
-      { status: 502 }
+      { error: requestErrorMessage(error, "Failed to fetch services") },
+      { status: requestErrorStatus(error, 502) }
     );
   }
 }

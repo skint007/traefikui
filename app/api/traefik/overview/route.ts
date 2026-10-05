@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { getOverview } from "@/lib/traefik/client";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -11,16 +12,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/traefik/overview");
+      const data = await proxyToAgent(serverId, "/traefik/overview", { signal: request.signal });
       return NextResponse.json(data);
     }
 
-    const overview = await getOverview();
+    const overview = await getOverview(request.signal);
     return NextResponse.json(overview);
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch overview" },
-      { status: 502 }
+      { error: requestErrorMessage(error, "Failed to fetch overview") },
+      { status: requestErrorStatus(error, 502) }
     );
   }
 }

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { server } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { validateServerUrl, validateResolvedHost } from "@/lib/validate-url";
+import { HEALTH_DEADLINE_MS, RequestDeadlineError, OUTBOUND_DEADLINE_MS, withRequestDeadline } from "@/lib/request-deadline";
 
 export async function getServerById(serverId: string) {
   const result = await db
@@ -25,7 +26,9 @@ async function safeFetch(url: string, init: RequestInit): Promise<Response> {
   }
   const parsed = new URL(url);
   const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+  init.signal?.throwIfAborted();
   const resolved = await validateResolvedHost(hostname);
+  init.signal?.throwIfAborted();
   if (!resolved.valid) {
     throw new Error(`Blocked outbound request: ${resolved.error}`);
   }
@@ -35,44 +38,53 @@ async function safeFetch(url: string, init: RequestInit): Promise<Response> {
 export async function proxyToAgent<T>(
   serverId: string,
   agentPath: string,
-  options?: { method?: string; body?: unknown },
+  options?: { method?: string; body?: unknown; signal?: AbortSignal },
 ): Promise<T> {
-  const srv = await getServerById(serverId);
+  return withRequestDeadline(async (signal) => {
+    const srv = await getServerById(serverId);
 
-  const res = await safeFetch(`${srv.url}/api/agent${agentPath}`, {
-    method: options?.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": srv.apiKey,
-    },
-    body: options?.body ? JSON.stringify(options.body) : undefined,
-    cache: "no-store",
-  });
+    const res = await safeFetch(`${srv.url}/api/agent${agentPath}`, {
+      signal,
+      method: options?.method ?? "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": srv.apiKey,
+      },
+      body: options?.body ? JSON.stringify(options.body) : undefined,
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Agent error: ${res.status}`);
-  }
+    if (!res.ok) {
+      const text = await res.text();
+      // Preserve an agent's timeout state instead of turning it into a retryable 502.
+      if (res.status === 504) throw new RequestDeadlineError(OUTBOUND_DEADLINE_MS);
+      throw new Error(text || `Agent error: ${res.status}`);
+    }
 
-  return res.json();
+    return res.json();
+  }, { signal: options?.signal });
 }
 
 export async function checkAgentHealth(
   url: string,
   apiKey: string,
+  incomingSignal?: AbortSignal,
 ): Promise<{ ok: boolean; version?: string; error?: string }> {
   try {
-    const res = await safeFetch(`${url}/api/agent/health`, {
-      headers: { "X-API-Key": apiKey },
-      signal: AbortSignal.timeout(5000),
-    });
+    return await withRequestDeadline(async (signal) => {
+      const res = await safeFetch(`${url}/api/agent/health`, {
+        headers: { "X-API-Key": apiKey },
+        signal,
+      });
 
-    if (!res.ok) {
-      return { ok: false, error: `HTTP ${res.status}` };
-    }
+      if (!res.ok) {
+        await res.body?.cancel();
+        return { ok: false, error: `HTTP ${res.status}` };
+      }
 
-    const data = await res.json();
-    return { ok: true, version: data.version };
+      const data = await res.json();
+      return { ok: true, version: data.version };
+    }, { signal: incomingSignal, timeoutMs: HEALTH_DEADLINE_MS });
   } catch (e) {
     return {
       ok: false,

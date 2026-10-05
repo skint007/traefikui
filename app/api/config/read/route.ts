@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { readConfigFile } from "@/lib/config/yaml-helpers";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, `/config/read?path=${encodeURIComponent(filePath)}`);
+      const data = await proxyToAgent(serverId, `/config/read?path=${encodeURIComponent(filePath)}`, { signal: request.signal });
       return NextResponse.json(data);
     }
 
@@ -28,8 +29,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("config/read failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: "Failed to read config file" },
-      { status: 500 }
+      { error: requestErrorMessage(error, "Failed to read config file") },
+      { status: requestErrorStatus(error, 500) }
     );
   }
 }

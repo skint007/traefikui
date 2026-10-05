@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { deleteConfigFile } from "@/lib/config/yaml-helpers";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     if (serverId) {
       const data = await proxyToAgent(serverId, "/config/delete", {
+        signal: request.signal,
         method: "POST",
         body: { filePath },
       });
@@ -31,8 +33,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("config/delete failed:", error instanceof Error ? error.message : "unknown");
     return NextResponse.json(
-      { error: "Failed to delete config file" },
-      { status: 500 }
+      { error: requestErrorMessage(error, "Failed to delete config file") },
+      { status: requestErrorStatus(error, 500) }
     );
   }
 }

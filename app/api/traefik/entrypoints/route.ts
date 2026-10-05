@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requestErrorMessage, requestErrorStatus } from "@/lib/request-deadline";
 import { getEntrypoints } from "@/lib/traefik/client";
 import { proxyToAgent } from "@/lib/server-proxy";
 import { requireSession } from "@/lib/require-session";
@@ -11,16 +12,16 @@ export async function GET(request: NextRequest) {
 
   try {
     if (serverId) {
-      const data = await proxyToAgent(serverId, "/traefik/entrypoints");
+      const data = await proxyToAgent(serverId, "/traefik/entrypoints", { signal: request.signal });
       return NextResponse.json(data);
     }
 
-    const entrypoints = await getEntrypoints();
+    const entrypoints = await getEntrypoints(request.signal);
     return NextResponse.json(entrypoints);
-  } catch {
+  } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch entrypoints" },
-      { status: 502 }
+      { error: requestErrorMessage(error, "Failed to fetch entrypoints") },
+      { status: requestErrorStatus(error, 502) }
     );
   }
 }

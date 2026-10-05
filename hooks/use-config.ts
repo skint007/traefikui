@@ -2,16 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUIStore } from "@/store/ui-store";
+import { fetchAPI, resourceRetryOptions } from "@/lib/client-request";
 import { invalidateServerConfig } from "@/hooks/config-invalidation";
-
-async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `API error: ${res.status}`);
-  }
-  return res.json();
-}
 
 function serverParam(serverId: string | null): string {
   return serverId ? `serverId=${encodeURIComponent(serverId)}` : "";
@@ -20,10 +12,11 @@ function serverParam(serverId: string | null): string {
 export function useConfigFiles() {
   const activeServerId = useUIStore((s) => s.activeServerId);
   return useQuery<string[]>({
+    ...resourceRetryOptions,
     queryKey: ["config", "files", activeServerId],
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const sp = serverParam(activeServerId);
-      return fetchAPI(`/api/config/list${sp ? `?${sp}` : ""}`);
+      return fetchAPI(`/api/config/list${sp ? `?${sp}` : ""}`, { signal });
     },
   });
 }
@@ -31,12 +24,13 @@ export function useConfigFiles() {
 export function useConfigFile(filePath: string | null) {
   const activeServerId = useUIStore((s) => s.activeServerId);
   return useQuery<{ content: string; parsed: unknown }>({
+    ...resourceRetryOptions,
     queryKey: ["config", "file", filePath, activeServerId],
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       const params = new URLSearchParams();
       params.set("path", filePath!);
       if (activeServerId) params.set("serverId", activeServerId);
-      return fetchAPI(`/api/config/read?${params.toString()}`);
+      return fetchAPI(`/api/config/read?${params.toString()}`, { signal });
     },
     enabled: !!filePath,
   });

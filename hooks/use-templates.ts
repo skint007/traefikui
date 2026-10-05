@@ -3,28 +3,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUIStore } from "@/store/ui-store";
 import { invalidateServerConfig } from "@/hooks/config-invalidation";
-
-async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `API error: ${res.status}`);
-  }
-  return res.json();
-}
+import { fetchAPI, resourceRetryOptions } from "@/lib/client-request";
 
 export function useTemplateFiles() {
   return useQuery<string[]>({
+    ...resourceRetryOptions,
     queryKey: ["templates", "files"],
-    queryFn: () => fetchAPI("/api/templates/list"),
+    queryFn: ({ signal }) => fetchAPI("/api/templates/list", { signal }),
   });
 }
 
 export function useTemplateFile(filePath: string | null) {
   return useQuery<{ content: string }>({
+    ...resourceRetryOptions,
     queryKey: ["templates", "file", filePath],
-    queryFn: () =>
-      fetchAPI(`/api/templates/read?path=${encodeURIComponent(filePath!)}`),
+    queryFn: ({ signal }) =>
+      fetchAPI(`/api/templates/read?path=${encodeURIComponent(filePath!)}`, { signal }),
     enabled: !!filePath,
   });
 }
