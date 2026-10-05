@@ -1,4 +1,4 @@
-import { QueryClient, QueryObserver } from "@tanstack/react-query";
+import { MutationObserver, onlineManager, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createGlobalResourceCombiner,
@@ -21,6 +21,7 @@ function createClient() {
 afterEach(() => {
   for (const client of clients.splice(0)) client.clear();
   vi.unstubAllGlobals();
+  onlineManager.setOnline(true);
 });
 
 function mockResources() {
@@ -40,6 +41,36 @@ function mockResources() {
 }
 
 describe("shared resource queries", () => {
+  it.each(["write", "delete", "rename", "duplicate"])("keeps a paused %s request and its invalidation on the original server", async (operation) => {
+    const client = createClient();
+    const writes: string[] = [];
+    const targets: string[] = [];
+    client.setQueryData(traefikQueries.routers("remote-a").queryKey, []);
+    client.setQueryData(traefikQueries.routers("remote-b").queryKey, []);
+    const options = (serverId: string) => ({
+      mutationKey: ["config", operation, serverId],
+      mutationFn: async () => { writes.push(serverId); },
+      onMutate: () => ({ serverId }),
+      onSuccess: async (_data: void, _variables: void, context: { serverId: string } | undefined) => {
+        if (!context) throw new Error("Missing mutation target");
+        targets.push(context.serverId);
+        await invalidateServerConfig(client, context.serverId);
+      },
+    });
+    onlineManager.setOnline(false);
+    const observer = new MutationObserver(client, options("remote-a"));
+    const pending = observer.mutate();
+    await vi.waitFor(() => expect(observer.getCurrentResult().isPaused).toBe(true));
+    observer.setOptions(options("remote-b"));
+    onlineManager.setOnline(true);
+    await client.resumePausedMutations();
+    await pending;
+    expect(writes).toEqual(["remote-a"]);
+    expect(targets).toEqual(["remote-a"]);
+    expect(client.getQueryState(traefikQueries.routers("remote-a").queryKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(traefikQueries.routers("remote-b").queryKey)?.isInvalidated).toBe(false);
+  });
+
   it("reuses fresh raw responses when navigating in either direction", async () => {
     const client = createClient();
     const request = mockResources();

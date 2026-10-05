@@ -47,6 +47,7 @@ export function useDeleteConfig() {
   const activeServerId = useUIStore((s) => s.activeServerId);
 
   return useMutation({
+    mutationKey: ["config", "delete", activeServerId],
     mutationFn: async ({ filePath }: { filePath: string }) => {
       return fetchAPI("/api/config/delete", {
         method: "POST",
@@ -65,6 +66,7 @@ export function useRenameConfig() {
   const activeServerId = useUIStore((s) => s.activeServerId);
 
   return useMutation({
+    mutationKey: ["config", "rename", activeServerId],
     mutationFn: async ({
       oldPath,
       newPath,
@@ -89,6 +91,7 @@ export function useWriteConfig() {
   const activeServerId = useUIStore((s) => s.activeServerId);
 
   return useMutation({
+    mutationKey: ["config", "write", activeServerId],
     mutationFn: async ({
       filePath,
       content,

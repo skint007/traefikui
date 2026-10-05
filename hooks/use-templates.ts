@@ -97,6 +97,7 @@ export function useDuplicateConfig() {
   const activeServerId = useUIStore((s) => s.activeServerId);
 
   return useMutation({
+    mutationKey: ["config", "duplicate", activeServerId],
     mutationFn: async ({
       sourcePath,
       destPath,
