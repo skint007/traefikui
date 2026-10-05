@@ -1,0 +1,53 @@
+import { describe, expect, it } from "vitest";
+import { filterTableRows, getTablePage } from "@/lib/table-pagination";
+
+describe("table pagination", () => {
+  it("keeps a View link's exact target on page one among substring matches", () => {
+    const rows = [
+      ...Array.from({ length: 50 }, (_, i) => `a${i}-router@file`),
+      "router@file",
+      "unrelated@file",
+    ];
+    const options = {
+      data: rows,
+      search: "router@file",
+      searchField: (row: string) => row,
+    };
+    const matches = filterTableRows({ ...options, prioritizeExactMatch: true });
+    const first = getTablePage({ total: matches.length, page: 1 });
+    expect(matches.slice(first.startIndex, first.endIndex)).toContain("router@file");
+    expect(matches).toHaveLength(51);
+    expect(rows[50]).toBe("router@file");
+    expect(filterTableRows({ ...options, prioritizeExactMatch: false })).toEqual(rows.slice(0, 51));
+  });
+
+  it("bounds a 5,000-row dataset and includes the final partial page", () => {
+    const rows = Array.from({ length: 5003 }, (_, index) => index);
+    const first = getTablePage({ total: rows.length, page: 1 });
+    const last = getTablePage({ total: rows.length, page: 101 });
+
+    expect(rows.slice(first.startIndex, first.endIndex)).toHaveLength(50);
+    expect(last.pageCount).toBe(101);
+    expect(rows.slice(last.startIndex, last.endIndex)).toEqual([5000, 5001, 5002]);
+  });
+
+  it("clamps a removed page to remaining results instead of an empty slice", () => {
+    const refreshedRows = Array.from({ length: 53 }, (_, index) => index);
+    const pagination = getTablePage({ total: refreshedRows.length, page: 100 });
+
+    expect(pagination.page).toBe(2);
+    expect(refreshedRows.slice(pagination.startIndex, pagination.endIndex)).toEqual([
+      50, 51, 52,
+    ]);
+  });
+
+  it("returns the first page for empty data without negative bounds", () => {
+    expect(getTablePage({ total: 0, page: 100 })).toEqual({
+      page: 1,
+      pageCount: 1,
+      startIndex: 0,
+      endIndex: 0,
+      total: 0,
+    });
+  });
+});

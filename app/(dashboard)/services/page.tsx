@@ -10,9 +10,11 @@ import {
   sortByProviderThenName,
 } from "@/components/dashboard/resource-table";
 import { Badge } from "@/components/ui/badge";
+import { useUIStore } from "@/store/ui-store";
 import type { TraefikService } from "@/lib/traefik/types";
 
 export default function ServicesPage() {
+  const activeServerId = useUIStore((s) => s.activeServerId);
   const { data: services, isLoading, error } = useServices();
   const { data: fileMap } = useResourceFileMap();
   const sorted = useMemo(() => sortByProviderThenName(services ?? []), [services]);
@@ -40,6 +42,8 @@ export default function ServicesPage() {
           ) : (
             <ResourceTable<TraefikService>
               data={sorted}
+              resetKey={activeServerId}
+              getRowKey={(row) => JSON.stringify([activeServerId, row.provider, row.name])}
               emptyMessage="No HTTP services found"
               searchField={(s) => s.name ?? ""}
               columns={[
