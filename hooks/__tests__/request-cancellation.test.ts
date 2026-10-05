@@ -70,7 +70,8 @@ describe("query cancellation and bounded retries", () => {
       await expect.poll(() => current().resources.length).toBe(3);
       expect(current().isLoading).toBe(false);
       expect(current().isFetching).toBe(true);
-      await expect.poll(() => counts.get("failing"), { timeout: 3_000 }).toBe(6);
+      // Polling handles recovery; each resource makes one failed attempt.
+      await expect.poll(() => counts.get("failing"), { timeout: 3_000 }).toBe(3);
       await expect.poll(() => current().isFetching, { timeout: 17_000 }).toBe(false);
       expect(current().resources).toHaveLength(3);
       expect(current().serverCounts?.hanging.errors).toBe(1);

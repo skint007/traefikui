@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { DEFAULT_POLLING_INTERVAL_MS } from "@/hooks/refresh-policy";
 
 interface UIState {
   sidebarOpen: boolean;
@@ -27,7 +28,7 @@ export const useUIStore = create<UIState>()(
       selectedService: null,
       selectedMiddleware: null,
       activePanel: "overview",
-      pollingInterval: 5000,
+      pollingInterval: DEFAULT_POLLING_INTERVAL_MS,
       activeServerId: null,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
