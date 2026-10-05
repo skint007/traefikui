@@ -10,9 +10,11 @@ import {
   sortByProviderThenName,
 } from "@/components/dashboard/resource-table";
 import { Badge } from "@/components/ui/badge";
+import { useUIStore } from "@/store/ui-store";
 import type { TraefikRouter } from "@/lib/traefik/types";
 
 export default function RoutersPage() {
+  const activeServerId = useUIStore((s) => s.activeServerId);
   const { data: routers, isLoading, error } = useRouters();
   const { data: fileMap } = useResourceFileMap();
   const sorted = useMemo(() => sortByProviderThenName(routers ?? []), [routers]);
@@ -40,6 +42,8 @@ export default function RoutersPage() {
           ) : (
             <ResourceTable<TraefikRouter>
               data={sorted}
+              resetKey={activeServerId}
+              getRowKey={(row) => JSON.stringify([activeServerId, row.provider, row.name])}
               emptyMessage="No HTTP routers found"
               searchField={(r) => r.name ?? ""}
               columns={[

@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileCode, Search, X } from "lucide-react";
+import {
+  TablePagination,
+  useTablePagination,
+} from "@/components/dashboard/table-pagination";
 
 interface Column<T> {
   header: string;
@@ -19,6 +23,8 @@ interface ResourceTableProps<T> {
   columns: Column<T>[];
   emptyMessage?: string;
   searchField?: (row: T) => string;
+  getRowKey: (row: T) => React.Key;
+  resetKey?: string | null;
 }
 
 export function ResourceTable<T>({
@@ -26,6 +32,8 @@ export function ResourceTable<T>({
   columns,
   emptyMessage = "No data available",
   searchField,
+  getRowKey,
+  resetKey,
 }: ResourceTableProps<T>) {
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
@@ -33,6 +41,10 @@ export function ResourceTable<T>({
   const filtered = searchField && search.trim()
     ? data.filter((row) => searchField(row).toLowerCase().includes(search.toLowerCase()))
     : data;
+  const pagination = useTablePagination(
+    filtered,
+    JSON.stringify([resetKey, search])
+  );
 
   return (
     <div className="space-y-4">
@@ -50,6 +62,7 @@ export function ResourceTable<T>({
               variant="ghost"
               size="icon"
               className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+              aria-label="Clear search"
               onClick={() => setSearch("")}
             >
               <X className="h-3.5 w-3.5" />
@@ -57,6 +70,8 @@ export function ResourceTable<T>({
           )}
         </div>
       )}
+
+      {filtered.length > 0 && <TablePagination {...pagination} />}
 
       {filtered.length === 0 ? (
         <div className="flex h-32 items-center justify-center text-muted-foreground">
@@ -78,8 +93,8 @@ export function ResourceTable<T>({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((row, i) => (
-                <tr key={i} className="border-b transition-colors hover:bg-muted/50">
+              {pagination.rows.map((row) => (
+                <tr key={getRowKey(row)} className="border-b transition-colors hover:bg-muted/50">
                   {columns.map((col, j) => (
                     <td key={j} className={`px-4 py-3 ${col.className ?? ""}`}>
                       {col.accessor(row)}
