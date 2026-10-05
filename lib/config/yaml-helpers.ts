@@ -1,6 +1,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import * as yaml from "yaml";
+import { getResourceFileMap, invalidateResourceFileMap } from "./resource-map-cache";
 
 const CONFIG_DIR = process.env.CONFIG_DIR ?? "/traefik-config";
 const DATA_DIR = process.env.DATABASE_URL?.replace("file:", "").replace(/\/[^/]+$/, "") ?? "./data";
@@ -88,6 +89,7 @@ export async function writeConfigFile(
 
   await fs.mkdir(path.dirname(resolved), { recursive: true });
   await fs.writeFile(resolved, content, "utf-8");
+  invalidateResourceFileMap(CONFIG_DIR);
 }
 
 export function parseYaml(content: string): unknown {
@@ -101,6 +103,7 @@ export function stringifyYaml(data: unknown): string {
 export async function deleteConfigFile(filePath: string): Promise<void> {
   const resolved = resolveConfigPath(filePath);
   await fs.unlink(resolved);
+  invalidateResourceFileMap(CONFIG_DIR);
 }
 
 // --- Template helpers ---
@@ -167,6 +170,7 @@ export async function renameConfigFile(
 
   await fs.mkdir(path.dirname(resolvedNew), { recursive: true });
   await fs.rename(resolvedOld, resolvedNew);
+  invalidateResourceFileMap(CONFIG_DIR);
 }
 
 export async function renameTemplateFile(
@@ -191,25 +195,31 @@ export async function renameTemplateFile(
 // --- Resource-to-file mapping ---
 
 /**
- * Build a map from Traefik resource name to the config file that defines it.
- * Parses all config files and extracts router/service/middleware names.
+ * Return the cached mapping of Traefik resources to their defining config files.
+ * Rebuild after helper mutations or external filesystem changes.
  * Returns e.g. { "myrouter@file": "myconfig.yaml", "myservice@file": "myconfig.yaml" }
  */
-export async function buildResourceFileMap(): Promise<Record<string, string>> {
+export function buildResourceFileMap(): Promise<Record<string, string>> {
+  return getResourceFileMap(CONFIG_DIR, rebuildResourceFileMap);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function rebuildResourceFileMap(): Promise<Record<string, string>> {
   const map: Record<string, string> = {};
   const files = await listConfigFiles();
 
   for (const file of files) {
     try {
       const { parsed } = await readConfigFile(file);
-      const config = parsed as Record<string, unknown> | null;
-      if (!config?.http) continue;
-
-      const http = config.http as Record<string, unknown>;
+      if (!isRecord(parsed) || !isRecord(parsed.http)) continue;
+      const http = parsed.http;
 
       for (const section of ["routers", "services", "middlewares"] as const) {
-        const items = http[section] as Record<string, unknown> | undefined;
-        if (!items) continue;
+        const items = http[section];
+        if (!isRecord(items)) continue;
         for (const name of Object.keys(items)) {
           map[`${name}@file`] = file;
         }
@@ -245,4 +255,5 @@ export async function copyConfigFile(
 
   await fs.mkdir(path.dirname(resolvedDest), { recursive: true });
   await fs.copyFile(resolvedSource, resolvedDest);
+  invalidateResourceFileMap(CONFIG_DIR);
 }

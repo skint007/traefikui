@@ -17,6 +17,10 @@ import { Button } from "@/components/ui/button";
 import { StatusCard } from "@/components/dashboard/status-card";
 import { StatusBadge } from "@/components/dashboard/resource-table";
 import {
+  TablePagination,
+  useTablePagination,
+} from "@/components/dashboard/table-pagination";
+import {
   useAllServersResources,
   type GlobalResource,
   type ResourceType,
@@ -103,6 +107,10 @@ export default function GlobalOverviewPage() {
       return a.name.localeCompare(b.name);
     });
   }, [resources, search, typeFilter]);
+  const pagination = useTablePagination(
+    filtered,
+    JSON.stringify([search, typeFilter])
+  );
 
   const totalRouters = Object.values(serverCounts).reduce(
     (sum, c) => sum + c.routers,
@@ -179,7 +187,7 @@ export default function GlobalOverviewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                 <div className="flex items-center gap-1.5">
                   <Route className="h-3.5 w-3.5 text-blue-500" />
                   <span className="text-muted-foreground">Routers:</span>
@@ -221,13 +229,14 @@ export default function GlobalOverviewPage() {
                   variant="ghost"
                   size="icon"
                   className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
+                  aria-label="Clear search"
                   onClick={() => setSearch("")}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {(["all", "router", "service", "middleware"] as const).map(
                 (t) => (
                   <Button
@@ -249,6 +258,8 @@ export default function GlobalOverviewPage() {
               ? "Loading resources..."
               : `${filtered.length} result${filtered.length !== 1 ? "s" : ""}${search || typeFilter !== "all" ? " found" : " total"}`}
           </p>
+
+          {!isLoading && filtered.length > 0 && <TablePagination {...pagination} />}
 
           {/* Results table */}
           {isLoading ? (
@@ -290,9 +301,9 @@ export default function GlobalOverviewPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r, i) => (
+                  {pagination.rows.map((r) => (
                     <tr
-                      key={`${r.serverId}-${r.type}-${r.name}-${i}`}
+                      key={JSON.stringify([r.serverId, r.type, r.provider, r.name])}
                       className="border-b transition-colors hover:bg-muted/50"
                     >
                       <td className="px-4 py-3 font-medium">{r.name}</td>
