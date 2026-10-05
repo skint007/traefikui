@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUIStore } from "@/store/ui-store";
+import { invalidateServerConfig } from "@/hooks/config-invalidation";
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
@@ -53,10 +54,9 @@ export function useDeleteConfig() {
         body: JSON.stringify({ filePath, serverId: activeServerId }),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["traefik"] });
-    },
+    onMutate: () => ({ serverId: activeServerId }),
+    onSuccess: (_data, _variables, context) =>
+      invalidateServerConfig(queryClient, context?.serverId ?? null),
   });
 }
 
@@ -78,10 +78,9 @@ export function useRenameConfig() {
         body: JSON.stringify({ oldPath, newPath, serverId: activeServerId }),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["traefik"] });
-    },
+    onMutate: () => ({ serverId: activeServerId }),
+    onSuccess: (_data, _variables, context) =>
+      invalidateServerConfig(queryClient, context?.serverId ?? null),
   });
 }
 
@@ -103,9 +102,8 @@ export function useWriteConfig() {
         body: JSON.stringify({ filePath, content, serverId: activeServerId }),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["traefik"] });
-    },
+    onMutate: () => ({ serverId: activeServerId }),
+    onSuccess: (_data, _variables, context) =>
+      invalidateServerConfig(queryClient, context?.serverId ?? null),
   });
 }
