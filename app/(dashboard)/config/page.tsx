@@ -6,7 +6,7 @@ import { useConfigFiles, useConfigFile, useWriteConfig, useDeleteConfig, useRena
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { YamlEditor } from "@/components/editors/yaml-editor";
+import { DeferredYamlEditor } from "@/components/editors/deferred-yaml-editor";
 import { DuplicateConfigDialog } from "@/components/config/duplicate-config-dialog";
 import { NewFromTemplateDialog } from "@/components/config/new-from-template-dialog";
 import {
@@ -209,7 +209,7 @@ function ConfigPageContent() {
               </CardContent>
             </Card>
           ) : (
-            <YamlEditor
+            <DeferredYamlEditor
               value={editedContent}
               onChange={handleContentChange}
               height="600px"
