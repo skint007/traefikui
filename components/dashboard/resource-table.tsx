@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileCode, Search, X } from "lucide-react";
+import { filterTableRows } from "@/lib/table-pagination";
 import {
   TablePagination,
   useTablePagination,
@@ -38,8 +39,13 @@ export function ResourceTable<T>({
   const searchParams = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
 
-  const filtered = searchField && search.trim()
-    ? data.filter((row) => searchField(row).toLowerCase().includes(search.toLowerCase()))
+  const filtered = searchField
+    ? filterTableRows({
+        data,
+        search,
+        searchField,
+        prioritizeExactMatch: search === searchParams.get("search"),
+      })
     : data;
   const pagination = useTablePagination(
     filtered,
