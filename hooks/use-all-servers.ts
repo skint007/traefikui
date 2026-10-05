@@ -13,17 +13,7 @@ import type {
   TraefikMiddleware,
 } from "@/lib/traefik/types";
 
-async function fetchAPI<T>(path: string): Promise<T> {
-  const res = await fetch(path);
-  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-function withServerId(path: string, serverId: string | null): string {
-  if (!serverId) return path;
-  const sep = path.includes("?") ? "&" : "?";
-  return `${path}${sep}serverId=${encodeURIComponent(serverId)}`;
-}
+import { traefikQueries } from "@/hooks/traefik-queries";
 
 export type ResourceType = "router" | "service" | "middleware";
 
@@ -38,7 +28,7 @@ export interface GlobalResource {
   detail?: string;
 }
 
-interface ServerTarget {
+export interface ServerTarget {
   id: string | null;
   name: string;
 }
@@ -78,7 +68,7 @@ function routersToGlobal(
 ): GlobalResource[] {
   return routers.map((r) => ({
     name: r.name ?? "unknown",
-    type: "router" as const,
+    type: "router",
     status: r.status,
     provider: r.provider,
     serverName: server.name,
@@ -93,7 +83,7 @@ function servicesToGlobal(
 ): GlobalResource[] {
   return services.map((s) => ({
     name: s.name ?? "unknown",
-    type: "service" as const,
+    type: "service",
     status: s.status,
     provider: s.provider,
     serverName: server.name,
@@ -108,7 +98,7 @@ function middlewaresToGlobal(
 ): GlobalResource[] {
   return middlewares.map((m) => ({
     name: m.name ?? "unknown",
-    type: "middleware" as const,
+    type: "middleware",
     status: m.status,
     provider: m.provider,
     serverName: server.name,
@@ -117,110 +107,93 @@ function middlewaresToGlobal(
   }));
 }
 
+export function globalResourceQueries(targets: ServerTarget[], pollingInterval: number) {
+  return targets.flatMap((target) => [
+    {
+      ...traefikQueries.routers(target.id),
+      select: (data: TraefikRouter[]) => routersToGlobal(data, target),
+      refetchInterval: pollingInterval,
+    },
+    {
+      ...traefikQueries.services(target.id),
+      select: (data: TraefikService[]) => servicesToGlobal(data, target),
+      refetchInterval: pollingInterval,
+    },
+    {
+      ...traefikQueries.middlewares(target.id),
+      select: (data: TraefikMiddleware[]) => middlewaresToGlobal(data, target),
+      refetchInterval: pollingInterval,
+    },
+  ]);
+}
+
+type ServerCounts = Record<string, {
+  name: string;
+  routers: number;
+  services: number;
+  middlewares: number;
+  errors: number;
+}>;
+
+// Observer status changes need fresh loading/error flags, but only changed data
+// should rebuild the resource list. Each hook instance owns its previous inputs.
+export function createGlobalResourceCombiner(targets: ServerTarget[]) {
+  let previousData: (GlobalResource[] | undefined)[] = [];
+  let previousErrors: boolean[] = [];
+  let resources: GlobalResource[] | undefined;
+  let serverCounts: ServerCounts | undefined;
+
+  return (queries: readonly QueryObserverResult<GlobalResource[]>[]) => {
+    const dataChanged = resources === undefined ||
+      queries.length !== previousData.length ||
+      queries.some((query, index) => query.data !== previousData[index]);
+    const errors = queries.map(hasGlobalQueryError);
+    const errorsChanged = errors.length !== previousErrors.length ||
+      errors.some((error, index) => error !== previousErrors[index]);
+
+    if (dataChanged) {
+      previousData = queries.map((query) => query.data);
+      resources = previousData.flatMap((data) => data ?? []);
+    }
+    if (dataChanged || errorsChanged || serverCounts === undefined) {
+      serverCounts = {};
+      for (const [index, target] of targets.entries()) {
+        const base = index * 3;
+        serverCounts[target.id ?? "local"] = {
+          name: target.name,
+          routers: previousData[base]?.length ?? 0,
+          services: previousData[base + 1]?.length ?? 0,
+          middlewares: previousData[base + 2]?.length ?? 0,
+          errors: errors.slice(base, base + 3).some(Boolean) ? 1 : 0,
+        };
+      }
+      previousErrors = errors;
+    }
+
+    return {
+      resources: resources ?? [],
+      serverCounts,
+      isLoading: isGlobalResourcesLoading(queries),
+      isFetching: queries.some((query) => query.isFetching),
+    };
+  };
+}
+
 export function useAllServersResources() {
   const { data: servers } = useServers();
   const { data: localName } = useLocalInstanceName();
   const pollingInterval = useUIStore((s) => s.pollingInterval);
 
-  // Build list of all server targets (local + remote)
-  const targets = useMemo<ServerTarget[]>(() => {
-    const list: ServerTarget[] = [
-      { id: null, name: localName ?? "Local Instance" },
-    ];
-    if (servers) {
-      for (const srv of servers) {
-        list.push({ id: srv.id, name: srv.name });
-      }
-    }
-    return list;
-  }, [servers, localName]);
+  const targets = useMemo<ServerTarget[]>(() => [
+    { id: null, name: localName ?? "Local Instance" },
+    ...(servers ?? []).map((server) => ({ id: server.id, name: server.name })),
+  ], [servers, localName]);
+  const queries = useMemo(
+    () => globalResourceQueries(targets, pollingInterval),
+    [targets, pollingInterval]
+  );
+  const combine = useMemo(() => createGlobalResourceCombiner(targets), [targets]);
+  const combined = useQueries({ queries, combine });
 
-  // Create queries for each server × resource type (3 queries per server)
-  const queries = useQueries({
-    queries: targets.flatMap((target) => [
-      {
-        queryKey: ["global", "routers", target.id],
-        queryFn: () =>
-          fetchAPI<TraefikRouter[]>(
-            withServerId("/api/traefik/routers", target.id)
-          ),
-        refetchInterval: pollingInterval,
-        meta: { target, type: "router" as const },
-      },
-      {
-        queryKey: ["global", "services", target.id],
-        queryFn: () =>
-          fetchAPI<TraefikService[]>(
-            withServerId("/api/traefik/services", target.id)
-          ),
-        refetchInterval: pollingInterval,
-        meta: { target, type: "service" as const },
-      },
-      {
-        queryKey: ["global", "middlewares", target.id],
-        queryFn: () =>
-          fetchAPI<TraefikMiddleware[]>(
-            withServerId("/api/traefik/middlewares", target.id)
-          ),
-        refetchInterval: pollingInterval,
-        meta: { target, type: "middleware" as const },
-      },
-    ]),
-  });
-
-  const isLoading = isGlobalResourcesLoading(queries);
-  const isFetching = queries.some((q) => q.isFetching);
-
-  // Combine all results into a flat list of GlobalResource
-  const resources = useMemo(() => {
-    const result: GlobalResource[] = [];
-    // queries are in groups of 3 per target: [routers, services, middlewares]
-    for (let i = 0; i < targets.length; i++) {
-      const target = targets[i];
-      const base = i * 3;
-      const routers = queries[base]?.data as TraefikRouter[] | undefined;
-      const services = queries[base + 1]?.data as TraefikService[] | undefined;
-      const middlewares = queries[base + 2]?.data as
-        | TraefikMiddleware[]
-        | undefined;
-
-      if (routers) result.push(...routersToGlobal(routers, target));
-      if (services) result.push(...servicesToGlobal(services, target));
-      if (middlewares) result.push(...middlewaresToGlobal(middlewares, target));
-    }
-    return result;
-  }, [targets, queries.map((q) => q.data)]);
-
-  // Per-server counts
-  const serverCounts = useMemo(() => {
-    const counts: Record<
-      string,
-      { name: string; routers: number; services: number; middlewares: number; errors: number }
-    > = {};
-    for (let i = 0; i < targets.length; i++) {
-      const target = targets[i];
-      const key = target.id ?? "local";
-      const base = i * 3;
-      const routers = queries[base]?.data as TraefikRouter[] | undefined;
-      const services = queries[base + 1]?.data as TraefikService[] | undefined;
-      const middlewares = queries[base + 2]?.data as
-        | TraefikMiddleware[]
-        | undefined;
-      const hasError =
-        hasGlobalQueryError(queries[base]) ||
-        hasGlobalQueryError(queries[base + 1]) ||
-        hasGlobalQueryError(queries[base + 2]);
-
-      counts[key] = {
-        name: target.name,
-        routers: routers?.length ?? 0,
-        services: services?.length ?? 0,
-        middlewares: middlewares?.length ?? 0,
-        errors: hasError ? 1 : 0,
-      };
-    }
-    return counts;
-  }, [targets, queries.map((q) => q.data), queries.map((q) => q.isError)]);
-
-  return { resources, serverCounts, targets, isLoading, isFetching };
+  return { ...combined, targets };
 }

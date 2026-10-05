@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useUIStore } from "@/store/ui-store";
+import { invalidateServerConfig } from "@/hooks/config-invalidation";
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
@@ -96,6 +97,7 @@ export function useDuplicateConfig() {
   const activeServerId = useUIStore((s) => s.activeServerId);
 
   return useMutation({
+    mutationKey: ["config", "duplicate", activeServerId],
     mutationFn: async ({
       sourcePath,
       destPath,
@@ -109,8 +111,8 @@ export function useDuplicateConfig() {
         body: JSON.stringify({ sourcePath, destPath, serverId: activeServerId }),
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-    },
+    onMutate: () => ({ serverId: activeServerId }),
+    onSuccess: (_data, _variables, context) =>
+      invalidateServerConfig(queryClient, context?.serverId ?? null),
   });
 }
