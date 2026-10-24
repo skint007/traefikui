@@ -81,8 +81,8 @@ export const middlewareFormSchema = z.object({
       referrerPolicy: z.string().optional(),
       contentSecurityPolicy: z.string().optional(),
       permissionsPolicy: z.string().optional(),
-      customRequestHeaders: z.record(z.string()).optional(),
-      customResponseHeaders: z.record(z.string()).optional(),
+      customRequestHeaders: z.record(z.string(), z.string()).optional(),
+      customResponseHeaders: z.record(z.string(), z.string()).optional(),
     })
     .optional(),
   // IP Allow List
