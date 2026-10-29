@@ -63,7 +63,7 @@
     "typescript": "^5.7.0",
     "vitest": "^3.2.6"
   },
-  "packageManager": "pnpm@10.6.5",
+  "packageManager": "pnpm@10.34.9",
   "pnpm": {
     "onlyBuiltDependencies": [
       "@prisma/engines",
