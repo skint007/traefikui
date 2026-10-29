@@ -4,9 +4,9 @@
 # Alpine keeps the base ~50 MB. Native build tools are here
 # because better-sqlite3 needs them at install time.
 # ============================================================
-FROM node:22-alpine AS base
+FROM node:26-alpine AS base
 RUN apk add --no-cache python3 make g++
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm i -g pnpm@10.6.5
 WORKDIR /app
 
 # ============================================================
@@ -55,7 +55,7 @@ RUN BETTER_AUTH_SECRET=build-placeholder \
 # Minimal production image. No build tools, no dev deps,
 # no source code — only standalone output + runtime needs.
 # ============================================================
-FROM node:22-alpine AS runner
+FROM node:26-alpine AS runner
 WORKDIR /app
 
 RUN apk add --no-cache sqlite
