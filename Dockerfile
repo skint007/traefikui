@@ -6,7 +6,7 @@
 # ============================================================
 FROM node:26-alpine AS base
 RUN apk add --no-cache python3 make g++
-RUN npm i -g pnpm@10.6.5
+RUN npm i -g pnpm@10.34.9
 WORKDIR /app
 
 # ============================================================
